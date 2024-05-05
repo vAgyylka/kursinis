@@ -1,0 +1,122 @@
+import random
+import json
+
+class HangmanWordProvider:
+    @staticmethod
+    def get_word():
+        with open("words.txt", "r") as file:
+            words = file.readlines()
+        return random.choice([word.strip().lower() for word in words])
+
+class HangmanGame:
+    def __init__(self, word, max_attempts=6):
+        self.word = word
+        self.max_attempts = max_attempts
+        self.guesses = []
+
+    def guess(self, letter):
+        self.guesses.append(letter)
+        if letter not in self.word:
+            self.max_attempts -= 1
+
+    def get_masked_word(self):
+        return ''.join([letter if letter in self.guesses else '_' for letter in self.word])
+
+    def is_game_over(self):
+        return self.max_attempts == 0 or '_' not in self.get_masked_word()
+
+    def is_win(self):
+        return '_' not in self.get_masked_word()
+
+    def get_status(self):
+        return f"Word: {self.get_masked_word()} | Attempts left: {self.max_attempts}"
+
+class SinglePlayerHangmanGame(HangmanGame):
+    def __init__(self, word, max_attempts=6):
+        super().__init__(word, max_attempts)
+        self.hints = 3
+
+    def use_hint(self):
+        if self.hints > 0:
+            hidden_letters = [i for i, letter in enumerate(self.word) if letter not in self.guesses]
+            if hidden_letters:
+                hint_index = random.choice(hidden_letters)
+                self.guess(self.word[hint_index])
+                self.hints -= 1
+
+class HangmanGameBuilder:
+    def __init__(self):
+        self.word = HangmanWordProvider.get_word()
+        self.max_attempts = 6
+
+    def set_word(self, word):
+        self.word = word
+        return self
+
+    def set_max_attempts(self, max_attempts):
+        self.max_attempts = max_attempts
+        return self
+
+    def build(self):
+        return HangmanGame(self.word, self.max_attempts)
+
+class HangmanGameFactory:
+    _instance = None
+
+    @staticmethod
+    def get_instance():
+        if HangmanGameFactory._instance is None:
+            HangmanGameFactory._instance = HangmanGameFactory()
+        return HangmanGameFactory._instance
+
+    def create_game(self):
+        return HangmanGameBuilder().build()
+
+class HangmanUI:
+    @staticmethod
+    def display_game_status(game):
+        print(game.get_status())
+
+    @staticmethod
+    def get_user_guess():
+        while True:
+            guess = input("Enter your guess (a single letter): ").lower()
+            if len(guess) == 1 and guess.isalpha():
+                return guess
+            else:
+                print("Please enter a single letter.")
+
+    @staticmethod
+    def display_result(game):
+        if game.is_win():
+            print("Congratulations! You've guessed the word.")
+        else:
+            print(f"Sorry, you've run out of attempts. The word was '{game.word}'.")
+
+def save_game_state(game, filename):
+    with open(filename, 'w') as file:
+        json.dump({'word': game.word, 'max_attempts': game.max_attempts, 'guesses': game.guesses}, file)
+
+def load_game_state(filename):
+    with open(filename, 'r') as file:
+        data = json.load(file)
+        return HangmanGame(data['word'], data['max_attempts']), data['guesses']
+
+def main():
+    factory = HangmanGameFactory.get_instance()
+    ui = HangmanUI()
+
+    game = factory.create_game()
+
+    while not game.is_game_over():
+        ui.display_game_status(game)
+        guess = ui.get_user_guess()
+        game.guess(guess)
+
+    ui.display_result(game)
+
+    save_game_state(game, 'hangman_state.json')
+
+if __name__ == "__main__":
+    main()
+
